@@ -1,0 +1,11 @@
+_DRIVE
+_OLD
+.vscode
+TESTS
+
+*.o
+
+kcomp
+scanner.cpp
+parser.cpp
+parser.hpp
