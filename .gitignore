@@ -9,3 +9,5 @@ kcomp
 scanner.cpp
 parser.cpp
 parser.hpp
+
+.DS_Store
