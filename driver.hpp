@@ -111,6 +111,18 @@ public:
   Value *codegen(driver& drv) override;
 };
 
+/// LogicalExprAST
+class LogicalExprAST : public ExprAST
+{
+  private:
+    std::string Op;
+    ExprAST* LHS;
+    ExprAST* RHS;
+  public:
+    LogicalExprAST(std::string Op, ExprAST* LHS, ExprAST* RHS);
+    Value *codegen(driver& drv) override;
+};
+
 /// CallExprAST - Classe per la rappresentazione di chiamate di funzione
 class CallExprAST : public ExprAST {
 private:

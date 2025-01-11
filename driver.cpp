@@ -108,6 +108,24 @@ Value *VariableExprAST::codegen(driver& drv) {
   return LogErrorV("Variabile "+Name+" non definita (Variable)");
 }
 
+/******************** Logical Expression Tree **********************/
+LogicalExprAST::LogicalExprAST(std::string Op, ExprAST* LHS, ExprAST* RHS):
+  Op(Op), LHS(LHS), RHS(RHS) {};
+
+Value *LogicalExprAST::codegen(driver& drv) {
+  Value *L = LHS->codegen(drv);
+  if (Op.compare("not") == 0) return builder->CreateNot(L, "notres");
+  Value *R = RHS->codegen(drv);  
+  if (!L || !R) return nullptr;
+  if (Op.compare("or") == 0) return builder->CreateOr(L, R, "orres");
+  else if (Op.compare("and") == 0) return builder->CreateAnd(L, R, "andres");
+  else
+  {
+    std::cout << Op << std::endl;
+    return LogErrorV("Operatore logico non supportato");
+  }
+};
+
 /******************** Binary Expression Tree **********************/
 BinaryExprAST::BinaryExprAST(char Op, ExprAST* LHS, ExprAST* RHS):
   Op(Op), LHS(LHS), RHS(RHS) {};
