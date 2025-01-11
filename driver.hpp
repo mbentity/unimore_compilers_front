@@ -138,9 +138,9 @@ public:
 class BlockExprAST : public ExprAST {
 private:
   std::vector<VarBindingAST*> Def;
-  ExprAST* Val;
+  std::vector<ExprAST*> Val;
 public:
-  BlockExprAST(std::vector<VarBindingAST*> Def, ExprAST* Val);
+  BlockExprAST(std::vector<VarBindingAST*> Def, std::vector<ExprAST*> Val);
   Value *codegen(driver& drv) override;
 }; 
 
@@ -182,6 +182,29 @@ private:
 public:
   FunctionAST(PrototypeAST* Proto, ExprAST* Body);
   Function *codegen(driver& drv) override;
+};
+
+/// GlobalVariableAST
+class GlobalVariableAST : public RootAST
+{
+  private:
+    std::string Name;
+  public:
+    GlobalVariableAST(const std::string Name);
+    lexval getLexVal() const override;
+    Value *codegen(driver& drv) override;
+};
+
+/// AssignmentAST
+class AssignmentAST : public ExprAST
+{
+  private:
+    std::string Name;
+    ExprAST* Val;
+  public:
+    AssignmentAST(std::string Name, ExprAST* Val);
+    Value *codegen(driver& drv) override;
+    std::string& getName();
 };
 
 #endif // ! DRIVER_HH

@@ -103,10 +103,9 @@ lexval VariableExprAST::getLexVal() const {
 // l'istruzione ma è anche il registro, vista la corrispodenza 1-1 fra le due nozioni), (3)
 // il nome del registro in cui verrà trasferito il valore dalla memoria
 Value *VariableExprAST::codegen(driver& drv) {
-  AllocaInst *A = drv.NamedValues[Name];
-  if (!A)
-     return LogErrorV("Variabile "+Name+" non definita");
-  return builder->CreateLoad(A->getAllocatedType(), A, Name.c_str());
+  if(AllocaInst *A = drv.NamedValues[Name]) return builder->CreateLoad(A->getAllocatedType(), A, Name.c_str());
+  if(GlobalVariable *GVar = module->getNamedGlobal(Name)) return builder->CreateLoad(GVar->getValueType(), GVar,Name.c_str());
+  return LogErrorV("Variabile "+Name+" non definita (Variable)");
 }
 
 /******************** Binary Expression Tree **********************/
@@ -265,8 +264,8 @@ Value* IfExprAST::codegen(driver& drv) {
 };
 
 /********************** Block Expression Tree *********************/
-BlockExprAST::BlockExprAST(std::vector<VarBindingAST*> Def, ExprAST* Val): 
-         Def(std::move(Def)), Val(Val) {};
+BlockExprAST::BlockExprAST(std::vector<VarBindingAST*> Def, std::vector<ExprAST*> Val):
+         Def(std::move(Def)), Val(std::move(Val)) {};
 
 Value* BlockExprAST::codegen(driver& drv) {
    // Un blocco è un'espressione preceduta dalla definizione di una o più variabili locali.
@@ -307,9 +306,13 @@ Value* BlockExprAST::codegen(driver& drv) {
    // Ora (ed è la parte più "facile" da capire) viene generato il codice che
    // valuta l'espressione. Eventuali riferimenti a variabili vengono risolti
    // nella symbol table appena modificata
-   Value *blockvalue = Val->codegen(drv);
-      if (!blockvalue)
-         return nullptr;
+    std::vector<Value*> AllocaVal;
+    for (int i=0, e=Val.size(); i<e; i++)
+    {
+      AllocaVal.push_back(Val[i]->codegen(drv));
+      if (!AllocaVal.back()) return nullptr;
+    };
+    Value *blockvalue = AllocaVal.back();
    // Prima di uscire dal blocco, si ripristina lo scope esterno al costrutto
    for (int i=0, e=Def.size(); i<e; i++) {
         drv.NamedValues[Def[i]->getName()] = AllocaTmp[i];
@@ -474,3 +477,47 @@ Function *FunctionAST::codegen(driver& drv) {
   return nullptr;
 };
 
+/************************* Global Variable Tree **************************/
+GlobalVariableAST::GlobalVariableAST(std::string Name): Name(Name) {};
+ 
+lexval GlobalVariableAST::getLexVal() const
+{
+  lexval lval = Name;
+  return lval;
+};
+
+Value *GlobalVariableAST::codegen(driver& drv)
+{
+  GlobalVariable *GlobalV = new GlobalVariable(
+    *module,
+    Type::getDoubleTy(*context),
+    false,
+    GlobalValue::CommonLinkage,
+    ConstantFP::get(*context, APFloat(0.0)),
+    Name
+  );
+  GlobalV->print(errs());
+  fprintf(stderr, "\n");
+  return GlobalV;
+};
+
+/************************* Assignment Tree **************************/
+AssignmentAST::AssignmentAST(std::string Name, ExprAST* Val):
+  Name(Name), Val(Val) {};
+
+std::string& AssignmentAST::getName() { 
+   return Name; 
+};
+
+Value *AssignmentAST::codegen(driver& drv) {
+  Value *Var = drv.NamedValues[Name];
+  if (!Var)
+  {
+    Var = module->getNamedGlobal(Name);
+    if(!Var) return LogErrorV("Variabile " + Name + " non definita (Assignment)");
+  }
+  Value* AssignedValue = Val->codegen(drv);
+  if (!AssignedValue) return nullptr;
+  builder->CreateStore(AssignedValue, Var);
+  return AssignedValue;
+};
