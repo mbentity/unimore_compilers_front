@@ -25,6 +25,7 @@
   class AssignmentAST;
   class IfExprAST;
   class BinaryExprAST;
+  class ForExprAST;
 }
 
 // The parsing context.
@@ -61,6 +62,9 @@
   DEF        "def"
   VAR        "var"
   GLOBAL     "global"
+  IF         "if"
+  FOR        "for"
+  ELSE       "else"
 ;
 
 %token <std::string> IDENTIFIER "id"
@@ -85,6 +89,9 @@
 %type <ExprAST*> stmt
 %type <AssignmentAST*> assignment
 %type <ExprAST*> initexp
+%type <IfExprAST*> ifstmt
+%type <ForExprAST*> forstmt
+%type <RootAST*> init
 
 
 %%
@@ -139,10 +146,29 @@ stmts:
 stmt:
   assignment            { $$ = $1; }
 | block                 { $$ = $1; }
-| exp                   { $$ = $1; };
+| exp                   { $$ = $1; }
+| ifstmt                { $$ = $1; }
+| forstmt               { $$ = $1; };
+
+ifstmt:
+  "if" "(" condexp ")" stmt                 { ExprAST* NullExpr;
+                                            $$ = new IfExprAST($3,$5,NullExpr); }
+| "if" "(" condexp ")" stmt "else" stmt     { $$ = new IfExprAST($3,$5,$7); };
+
+forstmt:
+  "for" "(" init ";" condexp ";" assignment ")" stmt   { $$ = new ForExprAST($3,$5,$7,$9); };
+
+init:
+  binding       { $$ = $1; }
+| assignment    { $$ = $1; };
 
 assignment:
   "id" "=" exp          { $$ = new AssignmentAST($1,$3); };
+| "+" "+" "id"    { ExprAST* Inc = new NumberExprAST(1.0); 
+                    ExprAST* Reg = new VariableExprAST($3);
+                    ExprAST* Res = new BinaryExprAST('+',Reg,Inc); 
+                    $$ = new AssignmentAST($3,Res);
+                  };
 
 exp:
   exp "+" exp           { $$ = new BinaryExprAST('+',$1,$3); }
@@ -178,6 +204,7 @@ condexp:
 idexp:
   "id"                  { $$ = new VariableExprAST($1); }
 | "id" "(" optexp ")"   { $$ = new CallExprAST($1,$3); };
+| "-" "id"              { $$ = new BinaryExprAST('*', new NumberExprAST(-1.0), new VariableExprAST($2)); }
 
 optexp:
   %empty                { std::vector<ExprAST*> args;

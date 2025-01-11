@@ -263,6 +263,58 @@ Value* IfExprAST::codegen(driver& drv) {
     return PN;
 };
 
+/********************** For Expression Tree *********************/
+ForExprAST::ForExprAST(RootAST* StartExp, ExprAST* Cond, AssignmentAST* StepExp, ExprAST* BlockExp):
+        StartExp(StartExp), Cond(Cond), StepExp(StepExp), BlockExp(BlockExp) {};
+
+Value* ForExprAST::codegen(driver& drv)
+{
+  Function *function = builder->GetInsertBlock()->getParent();
+  AllocaInst* AllocaTmp;
+  AllocaInst *Alloca;
+  VarBindingAST* SubClass = dynamic_cast<VarBindingAST*>(StartExp);
+  if(SubClass)
+  {
+    Alloca = SubClass->codegen(drv);
+    if (!Alloca) return nullptr;
+    AllocaTmp = drv.NamedValues[SubClass->getName()];
+    drv.NamedValues[SubClass->getName()] = Alloca;
+  }
+  else
+  {
+    AssignmentAST* SubClass = dynamic_cast<AssignmentAST*>(StartExp);
+    Alloca = CreateEntryBlockAlloca(function, SubClass->getName());
+    Value *Var = SubClass->codegen(drv);
+    if (!Var) return nullptr;
+    builder->CreateStore(Var, Alloca);
+    AllocaTmp = drv.NamedValues[SubClass->getName()];
+    drv.NamedValues[SubClass->getName()] = Alloca;
+  }
+  BasicBlock *LoopBB = BasicBlock::Create(*context, "loop", function);
+  BasicBlock *AfterBB = BasicBlock::Create(*context, "afterloop");
+  Value *EndV = Cond->codegen(drv);
+  if (!EndV) return nullptr;
+  builder->CreateCondBr(EndV, LoopBB, AfterBB);
+  builder->SetInsertPoint(LoopBB);
+  if (!BlockExp->codegen(drv)) return nullptr;
+  Value *StepVal = nullptr;
+  if (StepExp)
+  {
+    StepVal = StepExp->codegen(drv);
+    if (!StepVal) return nullptr;
+  }
+  else StepVal = ConstantFP::get(*context, APFloat(1.0));
+  EndV = Cond->codegen(drv);
+  if (!EndV) return nullptr;
+  builder->CreateCondBr(EndV, LoopBB, AfterBB);
+  LoopBB = builder->GetInsertBlock();
+  function->insert(function->end(), AfterBB);
+  builder->SetInsertPoint(AfterBB);
+  if (AllocaTmp) drv.NamedValues[SubClass->getName()] = AllocaTmp;
+  else drv.NamedValues.erase(SubClass->getName());
+  return Constant::getNullValue(Type::getDoubleTy(*context));
+};
+
 /********************** Block Expression Tree *********************/
 BlockExprAST::BlockExprAST(std::vector<VarBindingAST*> Def, std::vector<ExprAST*> Val):
          Def(std::move(Def)), Val(std::move(Val)) {};

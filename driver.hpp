@@ -134,6 +134,19 @@ public:
   Value *codegen(driver& drv) override;
 };
 
+/// ForExprAST
+class ForExprAST : public ExprAST
+{
+  private:
+    RootAST* StartExp;
+    ExprAST* Cond;
+    AssignmentAST* StepExp;
+    ExprAST* BlockExp;
+  public:
+    ForExprAST(RootAST* StartExp, ExprAST* Cond, AssignmentAST* StepExp, ExprAST* BlockExp);
+    Value *codegen(driver& drv) override;
+};
+
 /// BlockExprAST
 class BlockExprAST : public ExprAST {
 private:
