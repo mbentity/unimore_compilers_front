@@ -289,8 +289,9 @@ Value* ForExprAST::codegen(driver& drv)
 {
   Function *function = builder->GetInsertBlock()->getParent();
   AllocaInst* AllocaTmp;
-  AllocaInst *Alloca;
+  AllocaInst* Alloca;
   VarBindingAST* SubClass = dynamic_cast<VarBindingAST*>(StartExp);
+  // if variable is already defined (binding)
   if(SubClass)
   {
     Alloca = SubClass->codegen(drv);
@@ -298,6 +299,7 @@ Value* ForExprAST::codegen(driver& drv)
     AllocaTmp = drv.NamedValues[SubClass->getName()];
     drv.NamedValues[SubClass->getName()] = Alloca;
   }
+  // if variable is brand new (assignment)
   else
   {
     AssignmentAST* SubClass = dynamic_cast<AssignmentAST*>(StartExp);
@@ -308,13 +310,17 @@ Value* ForExprAST::codegen(driver& drv)
     AllocaTmp = drv.NamedValues[SubClass->getName()];
     drv.NamedValues[SubClass->getName()] = Alloca;
   }
+  // create loop and afterloop blocks
   BasicBlock *LoopBB = BasicBlock::Create(*context, "loop", function);
   BasicBlock *AfterBB = BasicBlock::Create(*context, "afterloop");
+  // create conditional between loop and afterloop
   Value *EndV = Cond->codegen(drv);
   if (!EndV) return nullptr;
   builder->CreateCondBr(EndV, LoopBB, AfterBB);
+  // generate loop block code
   builder->SetInsertPoint(LoopBB);
   if (!BlockExp->codegen(drv)) return nullptr;
+  // generate step block code: if not defined, default to +1
   Value *StepVal = nullptr;
   if (StepExp)
   {
@@ -322,14 +328,18 @@ Value* ForExprAST::codegen(driver& drv)
     if (!StepVal) return nullptr;
   }
   else StepVal = ConstantFP::get(*context, APFloat(1.0));
+  // create another conditional between loop and afterloop
   EndV = Cond->codegen(drv);
   if (!EndV) return nullptr;
   builder->CreateCondBr(EndV, LoopBB, AfterBB);
+  // generate afterloop block code
   LoopBB = builder->GetInsertBlock();
   function->insert(function->end(), AfterBB);
   builder->SetInsertPoint(AfterBB);
+  // restore variable value
   if (AllocaTmp) drv.NamedValues[SubClass->getName()] = AllocaTmp;
   else drv.NamedValues.erase(SubClass->getName());
+  // for loop is not supposed to return a value
   return Constant::getNullValue(Type::getDoubleTy(*context));
 };
 
